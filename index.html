@@ -1,0 +1,546 @@
+<!-- largely derived from https://jason.today/falling-sand -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Materials</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+      margin: 0 auto;
+      display: block;
+    }
+
+    .main {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #final {
+      height: calc(100% - 30px);
+      width: 100%;
+    }
+
+    button {
+      border: none;
+      height: 30px;
+      color: white;
+      flex-grow: 1;
+    }
+
+    #sand {
+      background-color: #dcb159;
+    }
+
+    #water {
+      background-color: #5996d1;
+    }
+
+    #mist {
+      background-color: #c9fbff;
+      color: black;
+    }
+
+    #rock {
+      background-color: #66593a;
+    }
+
+    #info {
+      color: black;
+    }
+
+    #button-bar {
+      width: 100%;
+      display: flex;
+      flex-direction: row;
+    }
+
+  </style>
+  <script src="./p5.min.js"></script>
+</head>
+
+<body>
+
+  <!-- elements: [s]and, [w]ater, [r]ock, [m]ist -->
+  <div class="main">
+    <div id="final"></div>
+    <div id="button-bar">
+      <button id="sand">Sand</button>
+      <button id="mist">Mist</button>
+      <button id="rock">Rock</button>
+      <button id="water">Water</button>
+    </div>
+    <div id="info-box">
+      Inspired by Jason McGhee's <a href="https://jason.today/falling-sand">Falling Sand</a>.
+      Click to place elements, shift click to remove them. Brackets change brush size.
+    </div>
+  </div>
+  <script type="application/javascript">
+    function before(p) {
+      window.darkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      background = p.color(window.darkMode ? "#1a1d21" : "#e5e2de");
+      p.background(background);
+    }
+
+    function after(p) {
+    }
+
+    // Simplify with some boilerplate
+    function make(id, width, height, zoom, fn, webgl = false) {
+      return new p5((p) => {
+        p.isWEBGL = webgl;
+
+        p.setup_ = () => { };
+        p.setup = function () {
+          // Disable context menu
+          for (let element of document.getElementsByClassName("p5Canvas")) {
+            element.addEventListener("contextmenu", (e) => e.preventDefault());
+            element.addEventListener("touchstart", (e) => e.preventDefault());
+            element.addEventListener("touchend", (e) => e.preventDefault());
+            element.addEventListener("touchmove", (e) => e.preventDefault());
+          }
+
+          // 60 FPS
+          p.frameRate(60);
+
+          // Ignore pixel density (Hi-DPI)
+          p.pixelDensity(1);
+
+          // Zoom canvas
+          const canvas = p.createCanvas(width, height, zoom, p.isWEBGL ? p.WEBGL : p.P2D);
+          canvas.elt.style.width = `${canvas.width * zoom}px`;
+          canvas.elt.style.height = `${canvas.height * zoom}px`;
+          p.setup_();
+          p.loadPixels();
+          p.noCursor();
+        };
+
+        p.draw_ = () => { };
+        p.update = () => { };
+
+        p.onLeftClick = (x, y) => { };
+        p.onRightClick = (x, y) => { };
+        p.onKeyDown = (k) => { };
+
+        let frame = 0;
+        let frameClock = 0;
+        p.draw = function () {
+          frame++;
+          const start = +new Date()
+          before(p);
+          p.update();
+
+          if (p.keyIsPressed) {
+            p.onKeyDown(p.key)
+          }
+
+          if (p.mouseActivated()) {
+            if ((p.touches.length && p.touches.length < 2) || p.mouseButton === p.LEFT) {
+              if (p.keyIsDown(p.SHIFT)) {
+                p.onShiftClick(p.getMousePixelX(), p.getMousePixelY());
+              } else {
+                p.onLeftClick(p.getMousePixelX(), p.getMousePixelY());
+              }
+            } else {
+              p.onRightClick(p.getMousePixelX(), p.getMousePixelY());
+            }
+          }
+          p.draw_();
+
+          p.drawMouse();
+          after(p);
+          frameClock += +new Date() - start;
+          if (frame % 250 === 0) {
+            console.log(frameClock / 250, 'ms (avg)')
+            frameClock = 0
+          }
+        };
+
+        p.mouseXInBounds = () => p.mouseX > 0 && p.mouseX < p.width - 1;
+        p.mouseYInBounds = () => p.mouseY > 0 && p.mouseY < p.height - 1;
+        p.mouseInBounds = () => p.mouseXInBounds() && p.mouseYInBounds();
+
+        p.mouseActivated = () => (p.mouseIsPressed) && p.mouseInBounds();
+
+        p.getMouseX = () => p.isWEBGL ? p.mouseX - p.width / 2 : p.constrain(p.mouseX, 0, p.width - 1);
+        p.getMouseY = () => p.isWEBGL ? p.mouseY - p.height / 2 : p.constrain(p.mouseY, 0, p.height - 1);
+        p.getMousePixelX = () => p.floor(p.getMouseX());
+        p.getMousePixelY = () => p.floor(p.getMouseY());
+
+        p.drawMouse = () => p.drawMousePixel(1, 1);
+
+        p.drawMousePixel = (width, height) => {
+          if (p.mouseInBounds()) {
+            p.fill(SAND_COLOR);
+            p.noStroke();
+            p.rect(p.getMousePixelX(), p.getMousePixelY(), width, height);
+          }
+        }
+
+        p.drawMouseCircle = (radius, color) => {
+          if (p.mouseInBounds()) {
+            if (p.keyIsDown(p.SHIFT)) {
+              p.fill(background);
+            } else {
+              p.fill(color);
+            }
+            p.noStroke();
+            p.circle(p.getMousePixelX(), p.getMousePixelY(), 2 * radius);
+          }
+        }
+
+        if (fn) {
+          fn(p);
+        }
+      }, id);
+    }
+
+    // Draw a pixel - don't forget to update when done!
+    function setPixel(p, i, { color }) {
+      const index = 4 * i;
+      p.pixels[index] = p.red(color);
+      p.pixels[index + 1] = p.green(color);
+      p.pixels[index + 2] = p.blue(color);
+      p.pixels[index + 3] = p.alpha(color);
+    }
+
+    // Add some lightness variation to the color
+    function varyColor(p, color) {
+      let hue = p.floor(p.hue(color));
+      let saturation = p.constrain(p.saturation(color) + p.floor(p.random(-20, 0)), 0, 100);
+      let lightness = p.constrain(p.lightness(color) + p.floor(p.random(-10, 10)), 0, 100);
+      let c = p.color(`hsl(${hue}, ${saturation}%, ${lightness}%)`);
+      return c;
+    }
+
+    class Grid {
+      initialize(width, height) {
+        this.width = width;
+        this.height = height;
+        this.grid = new Array(width * height).fill(null);
+        this.dirty = new Map(this.grid.map((_, i) => [i, null]));
+      }
+
+      clear() {
+        this.grid = new Array(this.width * this.height).fill(null);
+        this.dirty = new Map(this.grid.map((_, i) => [i, null]));
+      }
+
+      toIndex(x, y) {
+        return y * this.width + x;
+      }
+
+      set(i, color) {
+        // this.grid[i] = color;
+        this.dirty.set(i, color);
+      }
+
+      get(index) {
+        return this.dirty.has(index)
+          ? this.dirty.get(index)
+          : this.grid[index];
+      }
+
+      swap(a, b) {
+        const temp = this.get(a);
+        this.dirty.set(a, this.get(b));
+        this.dirty.set(b, temp);
+      }
+
+      isEmpty(index) {
+        return this.get(index) === null;
+      }
+
+      setCircle(x, y, colorFn, radius = 2, probability = 1.0) {
+        let radiusSq = radius * radius;
+        for (let y1 = -radius; y1 <= radius; y1++) {
+          for (let x1 = -radius; x1 <= radius; x1++) {
+            if (x1 * x1 + y1 * y1 <= radiusSq && Math.random() < probability) {
+              this.set(this.toIndex(x + x1, y + y1), colorFn());
+            }
+          }
+        }
+      }
+    }
+
+    class Logic {
+      logic(p, grid) { }
+    }
+
+    function makeLogic(logic, mapType) {
+      return (p) => new logic().logic(p, new mapType());
+    }
+
+    window.SAND_COLOR = "#dcb159";
+    window.WATER_COLOR = "#5996d1";
+    window.MIST_COLOR = "#c9fbff";
+    window.ROCK_COLOR = "#66593a";
+
+    class DrawingGrid extends Grid {
+      draw(p) {
+        this.dirty.forEach((c, i) => {
+          // console.log({i,c})
+          this.grid[i] = c;
+          setPixel(p, i, c || { color: background });
+        })
+        this.dirty.clear();
+        p.updatePixels();
+      }
+    }
+
+    class DrawingLogic extends Logic {
+      // Our main logic for this step!
+      logic(p, grid) {
+        p.setup_ = () => {
+          grid.initialize(p.width, p.height);
+          grid.setCircle(10, 10, () => varyColor(p, SAND_COLOR));
+        };
+
+        p.onLeftClick = (x, y) => {
+          // Vary the color slightly for aesthetics
+          let color = varyColor(p, SAND_COLOR);
+          grid.set(x, y, color);
+        };
+
+
+        p.onRightClick = () => grid.clear();
+
+        p.draw_ = () => grid.draw(p);
+      }
+    }
+
+    class FallingGrid extends DrawingGrid {
+      frame = 0;
+      update(p) {
+        this.frame++;
+        for (let i = this.grid.length - 1; i >= 0; i--) {
+          if (this.frame % 2) {
+            this.updatePixel(i, p);
+          } else {
+            const offset = i % this.width;
+            const flipped = this.width - offset;
+            this.updatePixel(i - offset + flipped, p);
+          }
+        }
+      }
+
+      updatePixel(i) {
+        const below = i + this.width;
+        // If there are no pixels below, move it down.
+        if (this.isEmpty(below) && !this.isEmpty(i)) {
+          this.swap(i, below)
+        }
+      }
+
+    }
+
+    class FallingLogic extends DrawingLogic {
+      logic(p, grid) {
+        super.logic(p, grid);
+        p.update = () => grid.update(p);
+      }
+    }
+
+    class SettlingGrid extends FallingGrid {
+      updatePixel(i, p) {
+        const emptyChecker = (i) => {
+          if (this.isEmpty(i)) { return true; }
+          if (this.grid[i] === null) { return true; }
+          return false;
+        }
+
+        if (emptyChecker(i)) { return; }
+        const below = i + this.width;
+        const above = i - this.width;
+
+        if (this.grid[i]?.type == 'rock') { return; }
+
+        const densities = {
+          air: 0.1,
+          mist: 0.1,
+          water: 1,
+          sand: 2,
+          rock: null,
+        }
+
+        if (this.grid[i]?.type == 'mist') {
+          this.grid[i].v ??= Math.round(Math.random() * 8);
+          const jitter = () => {
+            this.grid[i].v += Math.round(
+              Math.random() + Math.random() + Math.random() + Math.random() - 2)
+            this.grid[i].v %= 8
+          }
+          if (Math.random() < 0.3) {
+            jitter();
+          }
+          const targets = [
+            above - 1, above, above + 1,
+            i - 1, /*empty*/, i + 1,
+            below - 1, below, below + 1];
+
+          for (let attempt = 0; attempt < 10; attempt++) {
+            let target = targets[this.grid[i].v];
+            if (this.grid[target] === undefined) {
+              this.grid[i].v += 3
+              target = targets[this.grid[i].v];
+            }
+
+            if (this.grid[target]?.type === 'mist' && Math.random() < 0.01) {
+              this.set(i, { type: 'water', color: varyColor(p, WATER_COLOR) });
+              this.set(target, null);
+              break;
+            }
+            if (this.grid[target]?.type === 'water' && Math.random() < 0.1) {
+              if (Math.random() < 0.5) {
+                this.set(i, { type: 'water', color: varyColor(p, WATER_COLOR) });
+              } else {
+                this.set(i, null);
+              }
+              break;
+            }
+            if (emptyChecker(target)) {
+              this.swap(i, target);
+              break;
+            } else {
+              jitter();
+            }
+          }
+          return;
+        }
+
+        const isMoreDenseThan = (target) => {
+          let targetDensity;
+          if (emptyChecker(target)) {
+            targetDensity = densities['air']
+          } else {
+            targetDensity = densities[this.grid[target]?.type]
+          }
+          let thisDensity = densities[this.grid[i]?.type]
+          if (!targetDensity || !thisDensity) return false;
+          return thisDensity > targetDensity
+        }
+
+        if (isMoreDenseThan(below)) {
+          this.swap(i, below);
+          return;
+        }
+
+        const progression = Math.sign(Math.random() - 0.5);
+        for (let direction = -1; direction <= 1; direction += 2) {
+          const target = below + direction * progression;
+          if (isMoreDenseThan(target)) {
+            this.swap(i, target);
+            return;
+          }
+        }
+
+        if (this.grid[i]?.type === 'water') {
+          if (emptyChecker(above) && Math.random() < 0.001) {
+            this.set(i, { type: 'mist', color: varyColor(p, MIST_COLOR) })
+            this.set(above, { type: 'mist', color: varyColor(p, MIST_COLOR) })
+          }
+          const v = this.grid[i].v ??= Math.sign(Math.random() - 0.5);
+          let offset1 = Infinity;
+          let offset2 = Infinity;
+          for (let offset = 1; offset < this.width; offset++) {
+            const path = i + offset * v;
+            if (!emptyChecker(path)) {
+              break;
+            }
+            const target = i + this.width + offset * v;
+            if (emptyChecker(target)) {
+              offset1 = offset
+              break
+            }
+          }
+
+          for (let offset = 1; offset < this.width; offset++) {
+            const path = i - offset * v;
+            if (!emptyChecker(path)) {
+              break;
+            }
+            const target = i + this.width - offset * v;
+            if (emptyChecker(target)) {
+              offset2 = offset
+              break
+            }
+          }
+
+          if (offset1 < offset2 && emptyChecker(i + v)) {
+            this.swap(i, i + v)
+            return;
+          }
+          if (emptyChecker(i - v)) {
+            this.swap(i, i - v)
+            return;
+          }
+
+          this.grid[i].v *= -1;
+        }
+      }
+    }
+
+    let type = 'sand'
+    class SettlingLogic extends FallingLogic {
+      logic(p, grid) {
+
+        const brushes = {
+          'sand': { color: SAND_COLOR, fillRatio: 0.5 },
+          'water': { color: WATER_COLOR, fillRatio: 0.3 },
+          'mist': { color: MIST_COLOR, fillRatio: 0.01 },
+          'rock': { color: ROCK_COLOR, fillRatio: 1 },
+        }
+
+        let brushSize = 2;
+
+        super.logic(p, grid);
+        p.setup_ = () =>
+          grid.initialize(p.width, p.height);
+
+        p.onLeftClick = (x, y) => {
+          grid.setCircle(x, y, () => {
+            return ({ type: type, color: varyColor(p, brushes[type].color) })
+          }, brushSize, brushes[type].fillRatio);
+        }
+
+        p.onShiftClick = (x, y) =>
+          grid.setCircle(x, y, () => null, brushSize);
+
+        p.onKeyDown = k => {
+          if (k === 's') {
+            type = 'sand'
+          } else if (k === 'w') {
+            type = 'water'
+          } else if (k === 'm') {
+            type = 'mist'
+          } else if (k === 'r') {
+            type = 'rock'
+          } else if (k === '[') {
+            if (brushSize > 1) brushSize--
+          } else if (k === ']') {
+            brushSize++
+          }
+        }
+
+        p.drawMouse = () => p.drawMouseCircle(brushSize, brushes[type].color);
+      }
+    }
+    const container = document.getElementById('final');
+    make('final', Math.round(container.clientWidth / 4), Math.round(container.clientHeight / 4), 4, makeLogic(SettlingLogic, SettlingGrid))
+    ;['mist','rock','sand','water'].forEach(element => {
+      document.getElementById(element).onclick = () => type = element;
+    })
+  </script>
+</body>
+
+</html>
